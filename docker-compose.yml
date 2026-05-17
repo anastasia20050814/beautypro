@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: beautypro_db
+    restart: always
+    environment:
+      POSTGRES_DB: beautypro
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5434:5432"
+
+  server:
+    build: .
+    container_name: beautypro_server
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: beautypro
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      BOT_USERNAME: ${BOT_USERNAME}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../BeautyPro-4:/BeautyPro-4
+
+volumes:
+  pgdata:

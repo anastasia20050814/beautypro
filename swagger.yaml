@@ -1,0 +1,588 @@
+openapi: 3.0.0
+info:
+  title: BeautyPro API
+  description: API для сайта салона красоты BeautyPro
+  version: 1.0.0
+
+servers:
+  - url: /api
+    description: Локальный сервер
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [client, admin]
+        created_at:
+          type: string
+          format: date-time
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        service_id:
+          type: string
+        master_id:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        master_id:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+paths:
+
+  # ── АВТОРИЗАЦИЯ ──────────────────────────────────────────────
+
+  /register:
+    post:
+      tags:
+        - Авторизация
+      summary: Регистрация нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  example: Анастасия
+                email:
+                  type: string
+                  example: test@mail.ru
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Успешная регистрация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /login:
+    post:
+      tags:
+        - Авторизация
+      summary: Вход в аккаунт
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  example: test@mail.ru
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── ЗАПИСИ ───────────────────────────────────────────────────
+
+  /bookings:
+    get:
+      tags:
+        - Записи
+      summary: Получить мои записи
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список записей пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+        '401':
+          description: Не авторизован
+
+    post:
+      tags:
+        - Записи
+      summary: Создать новую запись
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_id, master_id, date, time]
+              properties:
+                service_id:
+                  type: string
+                  example: manicure
+                master_id:
+                  type: string
+                  example: master-1
+                date:
+                  type: string
+                  format: date
+                  example: '2026-06-01'
+                time:
+                  type: string
+                  example: '14:30'
+      responses:
+        '200':
+          description: Запись создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Время занято или дублирующая запись
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /bookings/{id}:
+    delete:
+      tags:
+        - Записи
+      summary: Удалить запись
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Запись удалена
+        '401':
+          description: Не авторизован
+
+  /bookings/slots:
+    get:
+      tags:
+        - Записи
+      summary: Получить занятые слоты мастера на дату
+      parameters:
+        - name: master_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: master-1
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-06-01'
+      responses:
+        '200':
+          description: Список занятых времён
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example: ['10:00', '14:30']
+
+  # ── ОТЗЫВЫ ───────────────────────────────────────────────────
+
+  /reviews/{masterId}:
+    get:
+      tags:
+        - Отзывы
+      summary: Получить отзывы мастера
+      parameters:
+        - name: masterId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: master-1
+      responses:
+        '200':
+          description: Список отзывов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+
+  /reviews:
+    post:
+      tags:
+        - Отзывы
+      summary: Добавить отзыв
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [master_id, rating, text]
+              properties:
+                master_id:
+                  type: string
+                  example: master-1
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  example: 5
+                text:
+                  type: string
+                  example: Отличный мастер, очень довольна!
+      responses:
+        '200':
+          description: Отзыв добавлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+
+  # ── ИЗБРАННОЕ ────────────────────────────────────────────────
+
+  /favorites:
+    get:
+      tags:
+        - Избранное
+      summary: Получить список избранных мастеров
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Массив ID избранных мастеров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example: ['master-1', 'master-3']
+
+  /favorites/{masterId}:
+    post:
+      tags:
+        - Избранное
+      summary: Добавить мастера в избранное
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: masterId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: master-1
+      responses:
+        '200':
+          description: Мастер добавлен
+    delete:
+      tags:
+        - Избранное
+      summary: Убрать мастера из избранного
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: masterId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Мастер удалён из избранного
+
+  # ── СПРАВОЧНИКИ ───────────────────────────────────────────────
+
+  /masters:
+    get:
+      tags:
+        - Справочники
+      summary: Список активных мастеров из БД
+      description: >
+        В текущей учебной версии мастера хранятся в data.js на клиенте.
+        Этот маршрут возвращает данные из БД если они там есть.
+      responses:
+        '200':
+          description: Список мастеров
+
+  /services:
+    get:
+      tags:
+        - Справочники
+      summary: Список активных услуг из БД
+      description: >
+        В текущей учебной версии услуги хранятся в data.js на клиенте.
+        Этот маршрут возвращает данные из БД если они там есть.
+      responses:
+        '200':
+          description: Список услуг
+
+  # ── ADMIN ─────────────────────────────────────────────────────
+
+  /admin/stats:
+    get:
+      tags:
+        - Администратор
+      summary: Статистика сайта
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Статистика
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: integer
+                  users:
+                    type: integer
+                  reviews:
+                    type: integer
+                  pending:
+                    type: integer
+        '403':
+          description: Нет прав администратора
+
+  /admin/bookings:
+    get:
+      tags:
+        - Администратор
+      summary: Все записи (только для админа)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список всех записей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+
+  /admin/bookings/{id}:
+    patch:
+      tags:
+        - Администратор
+      summary: Изменить статус записи
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, cancelled]
+      responses:
+        '200':
+          description: Статус обновлён
+    delete:
+      tags:
+        - Администратор
+      summary: Удалить запись (только для админа)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Запись удалена
+
+  /admin/users:
+    get:
+      tags:
+        - Администратор
+      summary: Все пользователи
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /admin/users/{id}:
+    delete:
+      tags:
+        - Администратор
+      summary: Удалить пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Пользователь удалён
+
+  /admin/users/{id}/role:
+    patch:
+      tags:
+        - Администратор
+      summary: Изменить роль пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [client, admin]
+      responses:
+        '200':
+          description: Роль обновлена
+
+  /admin/reviews:
+    get:
+      tags:
+        - Администратор
+      summary: Все отзывы
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список всех отзывов
+
+  /admin/reviews/{id}:
+    delete:
+      tags:
+        - Администратор
+      summary: Удалить отзыв
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Отзыв удалён
